@@ -1,0 +1,8 @@
+,diff,lo,hi,facts
+stale override (plain),0.938,0.812,1.0,16.0
+order effect (plain),0.286,0.143,0.457,35.0
+date effect (plain),0.014,0.0,0.043,35.0
+stale override (recency),0.923,0.769,1.0,13.0
+order effect (recency),-0.229,-0.4,-0.057,35.0
+date effect (recency),0.1,0.043,0.171,35.0
+"recency instruction, mixed, true dates",0.086,0.0,0.186,35.0

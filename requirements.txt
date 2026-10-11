@@ -1,0 +1,9 @@
+requests
+requests-cache
+pandas
+tqdm
+torch
+transformers
+pytest
+# optional, for --reader claude
+anthropic
