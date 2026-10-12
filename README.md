@@ -15,6 +15,8 @@ Readers treat retrieved text as authoritative and mostly ignore when it was writ
 
 ## Data
 
+> The raw inputs are not in this repository. [DATA.md](DATA.md) records exactly which files were used, with sizes and fingerprints, and how to re-fetch them.
+
 Built automatically from public sources, no hand labelling:
 
 - **Facts** (`stale_rag/facts.py`): every dated Wikidata statement for five roles that change hands: head of government (P6), head of state (P35), CEO (P169), head coach (P286) and chairperson (P488). A subject qualifies if it has exactly one current holder and a predecessor whose term ended within a year of the change, the predecessor was already in office on the snapshot date, and the subject is prominent (sitelink threshold per role). Changes run from 2008 to 90 days before the build date.
@@ -66,20 +68,29 @@ All HTTP responses are cached in `data/http_cache/`. Wikimedia rate-limits anony
 
 ## Results
 
-**Qwen2.5-0.5B-Instruct**, 725 facts × 26 conditions (18,850 scored prompts). Intervals are 95% bootstraps over facts. Qwen2.5-1.5B-Instruct on a 300-fact subset is in progress.
+Two readers, scored by log-probability: **Qwen2.5-0.5B-Instruct** on all 725 facts and **Qwen2.5-1.5B-Instruct** on a seeded 300-fact subset, each across all 26 conditions (26,650 scored prompts). The figures and the comparisons below use the 300 facts both models saw; intervals are 95% bootstraps over facts.
 
 ![Share of answers naming the current holder, by context and date condition](figures/conditions.png)
 
 ![Headline contrasts with 95% intervals](figures/contrasts.png)
 
-1. **One stale passage overrides what the model knows.** Given only the stale passage, the model names the current holder 2% of the time. That includes the 174 facts where, with no passage, it prefers the current holder by at least about 150 to 1 (a log-probability margin above 5): a stale passage still flips 94% of those.
-2. **With both passages and a plain question, the first passage wins.** Current-first gives the current holder 58%, stale-first 38%: an order effect of **+19 points** (16 to 23).
-3. **Dates are ignored unless the model is told to use them.** With a plain question, swapping the two passages' revision dates moves the answer by **+1 point** (0.1 to 1.7). With "trust the most recent source", true dates beat swapped dates by **+12 points** (10 to 14).
-4. **"Trust the most recent source" is partly read as "trust the last source."** With no dates at all, the instruction reverses the order effect to **-12 points** (-16 to -8): it pulls the answer toward whichever passage comes second, even though nothing says which one is newer.
-5. **Even the best prompt leaves a lot of stale answers.** With both passages, true dates and the recency instruction, the model names the current holder 57% of the time (averaged over the two orders), 7 points better than the plain question (6 to 9).
-6. **Stronger passages make the order effect bigger.** On the 273 facts where both passages state the role in the present tense ("the current governor is..."), the plain-question gap between current-first (67%) and stale-first (31%) is 36 points, against 20 on the rest.
+1. **One stale passage overrides what the model knows.** Given only the stale passage, the models name the current holder 4% (0.5B) and 5% (1.5B) of the time. With only the current passage, 94% and 93%. The passage decides the answer almost completely.
+2. **Knowing the answer helps only the bigger model, and only a little.** Call a fact "known" when, with no passage, the model prefers the current holder by about 150 to 1 or more (log-probability margin above 5): 75 facts for 0.5B, 62 for 1.5B.
 
-A caveat on the training-cutoff split: at 0.5B, closed-book accuracy is flat at about 40% across every change year from 2014 to 2026, including changes after the model was trained. The model does not really know these facts, so its closed-book "knowledge" is mostly a name prior, and the before/after-cutoff comparison is not informative at this size. The 1.5B run is there to test whether a model that knows more resists stale passages better.
+   | known minus unknown facts, % naming the current holder | 0.5B | 1.5B |
+   |---|---|---|
+   | stale passage only | +8 (1 to 15) | **+21 (12 to 32)** |
+   | both passages, true dates, plain question | +6 (-4 to 17) | **+18 (7 to 29)** |
+
+   Even so, the 1.5B model gives the stale answer on 78% of the facts it knows when shown only the stale passage. Both models also know older changes better: with no passage they get 44 to 46% of changes up to 2022 against 26 to 32% from 2023 on.
+3. **With both passages and a plain question, the first passage wins.** Current-first minus stale-first is **+22 points** (16 to 27) for 0.5B and **+17** (12 to 23) for 1.5B. The gap roughly doubles when both passages state the role in the present tense ("the current governor is..."): 37 against 19 points for 0.5B, 29 against 16 for 1.5B.
+4. **Dates are ignored unless the model is told to use them.** With a plain question, swapping the two passages' revision dates moves the answer by **+1** and **+2 points**. With "if the sources disagree, trust the most recent one", true dates beat swapped dates by **+10** (8 to 13) and **+8** (6 to 11).
+5. **The small model reads "most recent" as "last".** With no dates at all, the recency instruction flips the 0.5B order effect to **-10 points** (-15 to -5): it pulls the answer toward whichever passage comes second. At 1.5B this is gone (+4, -2 to 10).
+6. **Even the best prompt leaves about half the answers stale.** With both passages, true dates and the recency instruction, the models name the current holder 55% (0.5B) and 53% (1.5B) of the time, averaged over the two orders: 5 to 7 points better than the plain question.
+
+On all 725 facts the 0.5B numbers match the subset: order effect +19 (16 to 23), date effect +1 plain and +12 with the instruction, -12 last-passage pull, 2% current with only the stale passage.
+
+**Takeaway.** For these readers, retrieval is close to the whole answer: whatever passage comes first, or comes alone, wins, and an attached revision date only matters when the prompt explicitly asks for it. A RAG system that keeps old versions in its index cannot count on the reader to sort them out; it has to filter or rerank by date before generation. The one sign of resistance, at 1.5B on facts the model already knows, is real but small.
 
 ## Limits
 
